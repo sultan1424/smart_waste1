@@ -1,5 +1,5 @@
+# ── Existing packages (unchanged) ────────────────────────────────────────
 alembic==1.13.1
-annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.12.1
 async-timeout==5.0.1
@@ -29,12 +29,10 @@ mdurl==0.1.2
 orjson==3.11.7
 packaging==25.0
 passlib==1.7.4
-pip==26.0.1
 psycopg2-binary==2.9.9
 pyasn1==0.6.2
 pycparser==3.0
 pydantic==2.7.1
-
 pydantic_core==2.18.2
 pydantic-settings==2.3.0
 Pygments==2.19.2
@@ -58,4 +56,17 @@ uvicorn==0.29.0
 uvloop==0.22.1
 watchfiles==1.1.1
 websockets==16.0
-wheel==0.46.3
+
+# ── New: ML models ────────────────────────────────────────────────────────
+
+# Mohsen's Prophet forecasting model
+prophet==1.1.6
+pandas==2.2.3
+numpy==1.26.4
+
+# Aseel's OR-Tools routing model
+ortools==9.11.4210
+openpyxl==3.1.5
+
+# Nightly scheduler (runs Prophet at 2am UTC)
+APScheduler==3.10.4
