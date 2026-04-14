@@ -6,6 +6,7 @@ Uses SYNC_DATABASE_URL (psycopg2) for simplicity.
     - Telemetry values simulate realistic IoT sensor patterns
     - Forecasts are random (placeholder for the CS/ISE forecasting module)
     - Pickup routes are placeholder (placeholder for the scheduling module)
+    - Coordinates match Aseel's routing model (Dammam, Saudi Arabia)
 """
 import os, sys, random, math, hashlib
 from datetime import datetime, timedelta, timezone, date
@@ -29,27 +30,28 @@ FORECAST_HORIZON   = 10
 ROUTES             = ["R-NORTH", "R-SOUTH", "R-EAST", "R-WEST", "R-CENTRAL"]
 # ───────────────────────────────────────────────────────────────────────────
 
+# Dammam locations — first 20 match Aseel's routing model node positions
 LOCATIONS = [
-    ("Restaurant Row A",    24.6877, 46.7219),
-    ("University Cafeteria",24.7136, 46.6753),
-    ("Central Market",      24.6880, 46.7233),
-    ("City Park North",     24.7251, 46.6901),
-    ("Tech Hub Plaza",      24.7421, 46.6512),
-    ("Hospital Complex",    24.6521, 46.7102),
-    ("Sports Complex",      24.7601, 46.7341),
-    ("Residential Block D", 24.6982, 46.7654),
-    ("Shopping Mall West",  24.6741, 46.6988),
-    ("Office District",     24.7312, 46.7023),
-    ("Airport Terminal",    24.9578, 46.6988),
-    ("Bus Station Central", 24.6805, 46.7315),
-    ("School District 4",   24.7095, 46.7432),
-    ("Mosque Compound",     24.6951, 46.6871),
-    ("Residential Block K", 24.7189, 46.7189),
-    ("Food Court East",     24.6631, 46.7451),
-    ("Hotel Row",           24.7522, 46.7102),
-    ("Industrial Zone C",   24.6401, 46.7681),
-    ("Marina Walk",         24.7801, 46.6341),
-    ("Suburb Connector",    24.6221, 46.7891),
+    ("Al Corniche",        26.4447, 50.1120),
+    ("Al Faisaliyah",      26.4390, 50.0950),
+    ("Al Hamra",           26.4310, 50.1070),
+    ("Al Murjan",          26.4500, 50.1060),
+    ("Al Rakah",           26.4260, 50.1150),
+    ("Al Nakheel",         26.4560, 50.0980),
+    ("Al Dana",            26.4480, 50.1200),
+    ("Al Aqrabiyah",       26.4330, 50.0900),
+    ("Al Badiyah",         26.4200, 50.1000),
+    ("Al Taawun",          26.4620, 50.1040),
+    ("Al Mazruiyah",       26.4150, 50.1100),
+    ("Al Anud",            26.4280, 50.0870),
+    ("Dhahran Hills",      26.4700, 50.1090),
+    ("Al Safa",            26.4380, 50.1190),
+    ("Uhud District",      26.4090, 50.1040),
+    ("Al Khalidiyah",      26.4440, 50.0840),
+    ("Al Jawharah",        26.4600, 50.1160),
+    ("Al Qusur",           26.4170, 50.0950),
+    ("Al Firdaws",         26.4530, 50.0900),
+    ("Al Rawdah",          26.4350, 50.1260),
 ]
 
 
@@ -63,8 +65,8 @@ def make_bins():
             name=f"Smart Bin #{i+1:03d}",
             location_name_encrypted=encrypt_value(location_name),
             location_name_hash=hashlib.sha256(location_name.lower().encode()).hexdigest(),
-            lat=loc[1] + random.uniform(-0.002, 0.002),
-            lng=loc[2] + random.uniform(-0.002, 0.002),
+            lat=loc[1] + random.uniform(-0.001, 0.001),
+            lng=loc[2] + random.uniform(-0.001, 0.001),
             installed_at=datetime.now(timezone.utc) - timedelta(days=random.randint(60, 365)),
             status=BinStatus.operational,
         ))
@@ -160,7 +162,7 @@ def seed():
         session.query(Bin).delete()
         session.commit()
 
-        print(f"🏗  Creating {BIN_COUNT} bins...")
+        print(f"🏗  Creating {BIN_COUNT} bins in Dammam...")
         bins = make_bins()
         session.add_all(bins)
         session.commit()
@@ -187,7 +189,7 @@ def seed():
         session.commit()
         print(f"    → {len(forecasts)} forecast records")
 
-    print("\n✅  Seed complete!")
+    print("\n✅  Seed complete! All bins now in Dammam — consistent with Aseel's routing model.")
 
 
 if __name__ == "__main__":
