@@ -7,7 +7,7 @@ Uses SYNC_DATABASE_URL (psycopg2) for simplicity.
     - Forecasts are random (placeholder for the CS/ISE forecasting module)
     - Pickup routes are placeholder (placeholder for the scheduling module)
 """
-import os, sys, random, math
+import os, sys, random, math, hashlib
 from datetime import datetime, timedelta, timezone, date
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -17,14 +17,15 @@ load_dotenv()
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from app.config import settings
+from app.core.security import encrypt_value
 from app.models.models import Base, Bin, Telemetry, Pickup, Forecast, BinStatus, PickupPriority, PickupStatus
 
 # ── Configuration ──────────────────────────────────────────────────────────
 BIN_COUNT          = 20
 DAYS               = 30
-INTERVAL_MINUTES   = 120    # set to 5 for max density (~864K rows); 30 is ~144K
-SKIP_PROB          = 0.03  # probability of a missing reading (simulates dropped packets)
-FORECAST_HORIZON   = 10    # days ahead
+INTERVAL_MINUTES   = 120
+SKIP_PROB          = 0.03
+FORECAST_HORIZON   = 10
 ROUTES             = ["R-NORTH", "R-SOUTH", "R-EAST", "R-WEST", "R-CENTRAL"]
 # ───────────────────────────────────────────────────────────────────────────
 
@@ -56,10 +57,12 @@ def make_bins():
     bins = []
     for i in range(BIN_COUNT):
         loc = LOCATIONS[i % len(LOCATIONS)]
+        location_name = loc[0]
         bins.append(Bin(
             id=f"BN-{i+1:03d}",
             name=f"Smart Bin #{i+1:03d}",
-            location_name=loc[0],
+            location_name_encrypted=encrypt_value(location_name),
+            location_name_hash=hashlib.sha256(location_name.lower().encode()).hexdigest(),
             lat=loc[1] + random.uniform(-0.002, 0.002),
             lng=loc[2] + random.uniform(-0.002, 0.002),
             installed_at=datetime.now(timezone.utc) - timedelta(days=random.randint(60, 365)),
@@ -69,14 +72,10 @@ def make_bins():
 
 
 def fill_pct_at(hour: int, day_offset: int, bin_idx: int) -> float:
-    """
-    Simulate realistic fill: rises during meal/business hours,
-    resets after pickup (midnight), adds per-bin variability.
-    """
-    base_rate  = 0.8 + 0.4 * (bin_idx % 5)          # bins at busier spots fill faster
-    hour_factor= 1.0 + 0.5 * math.sin(math.pi * hour / 12)  # peaks at noon
+    base_rate  = 0.8 + 0.4 * (bin_idx % 5)
+    hour_factor= 1.0 + 0.5 * math.sin(math.pi * hour / 12)
     fill = (hour / 24.0) * base_rate * hour_factor * 100
-    fill += random.gauss(0, 3)                         # sensor noise
+    fill += random.gauss(0, 3)
     return max(0.0, min(100.0, fill))
 
 
@@ -88,7 +87,7 @@ def make_telemetry(bins):
     for b_idx, b in enumerate(bins):
         ts = start
         while ts < now:
-            if random.random() > SKIP_PROB:  # simulate occasional missing readings
+            if random.random() > SKIP_PROB:
                 fill = fill_pct_at(ts.hour, (ts - start).days, b_idx)
                 rows.append(Telemetry(
                     bin_id     = b.id,
@@ -111,7 +110,7 @@ def make_pickups(bins):
         dt_base= datetime(d.year, d.month, d.day, 6, 0, tzinfo=timezone.utc)
         route  = ROUTES[day_offset % len(ROUTES)]
         for b in bins:
-            if random.random() < 0.35:   # ~35% of bins get a pickup on any given day
+            if random.random() < 0.35:
                 hour_offset = random.randint(0, 8)
                 sched       = dt_base + timedelta(hours=hour_offset)
                 past        = day_offset < 0
@@ -144,17 +143,16 @@ def make_forecasts(bins):
                 predicted_fill_pct     = round(predicted_fill, 2),
                 predicted_weight_kg    = round(predicted_fill * 0.045, 3),
                 recommended_pickup_date= fd if predicted_fill > 70 else fd + timedelta(days=1),
-                model_version          = "mock-v0.1",  # ← PLACEHOLDER for CS/ISE module
+                model_version          = "mock-v0.1",
             ))
     return rows
 
 
 def seed():
     engine = create_engine(settings.SYNC_DATABASE_URL, echo=False)
-    Base.metadata.create_all(engine)   # safety net if migrations weren't run
+    Base.metadata.create_all(engine)
 
     with Session(engine) as session:
-        # Idempotent: clear existing seed data
         print("🗑  Clearing existing data...")
         session.query(Forecast).delete()
         session.query(Pickup).delete()
@@ -170,7 +168,6 @@ def seed():
         print(f"📡  Generating telemetry ({DAYS} days × {BIN_COUNT} bins @ {INTERVAL_MINUTES}min intervals)...")
         tel = make_telemetry(bins)
         print(f"    → {len(tel):,} telemetry rows")
-        # Bulk insert in batches for speed
         BATCH = 5000
         for i in range(0, len(tel), BATCH):
             session.bulk_save_objects(tel[i:i+BATCH])
