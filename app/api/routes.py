@@ -25,13 +25,15 @@ def _hash(value: str) -> str:
     return hashlib.sha256(value.lower().encode()).hexdigest()
 
 def _decrypt_bin(b: Bin) -> dict:
-    """Decrypt sensitive Bin fields before returning to client."""
-    # Handle both old (location_name) and new (location_name_encrypted) schema
-    if hasattr(b, 'location_name_encrypted') and b.location_name_encrypted:
-        location = decrypt_value(b.location_name_encrypted)
-    elif hasattr(b, 'location_name') and b.location_name:
-        location = b.location_name
-    else:
+    try:
+        if hasattr(b, 'location_name_encrypted') and b.location_name_encrypted:
+            location = decrypt_value(b.location_name_encrypted)
+        elif hasattr(b, 'location_name') and b.location_name:
+            location = b.location_name
+        else:
+            location = "Unknown"
+    except Exception as e:
+        print(f"❌ Decrypt failed for bin {b.id}: {e}")
         location = "Unknown"
     return {
         "id": b.id,
