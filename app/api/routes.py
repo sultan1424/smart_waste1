@@ -26,10 +26,17 @@ def _hash(value: str) -> str:
 
 def _decrypt_bin(b: Bin) -> dict:
     """Decrypt sensitive Bin fields before returning to client."""
+    # Handle both old (location_name) and new (location_name_encrypted) schema
+    if hasattr(b, 'location_name_encrypted') and b.location_name_encrypted:
+        location = decrypt_value(b.location_name_encrypted)
+    elif hasattr(b, 'location_name') and b.location_name:
+        location = b.location_name
+    else:
+        location = "Unknown"
     return {
         "id": b.id,
         "name": b.name,
-        "location_name": decrypt_value(b.location_name_encrypted) if b.location_name_encrypted else (b.location_name or "Unknown"),
+        "location_name": location,
         "lat": b.lat,
         "lng": b.lng,
         "status": b.status.value,
