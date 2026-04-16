@@ -1,4 +1,5 @@
 import time
+import hashlib
 from datetime import datetime, timezone, date
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -13,8 +14,33 @@ from app.schemas.schemas import (
 )
 from app.services.report_service import get_30day_report
 from app.core.deps import get_current_user, require_roles
+from app.core.security import encrypt_value, decrypt_value
 
 router = APIRouter()
+
+# ── Helpers ───────────────────────────────────────────────────────────────
+
+def _hash(value: str) -> str:
+    """SHA-256 hash for fast indexed lookup."""
+    return hashlib.sha256(value.lower().encode()).hexdigest()
+
+def _decrypt_bin(b: Bin) -> dict:
+    """Decrypt sensitive Bin fields before returning to client."""
+    return {
+        "id": b.id,
+        "name": b.name,
+        "location_name": decrypt_value(b.location_name_encrypted) if b.location_name_encrypted else (b.location_name or "Unknown"),
+        "lat": b.lat,
+        "lng": b.lng,
+        "status": b.status.value,
+        "installed_at": b.installed_at,
+    }
+
+def _get_restaurant_id(user: User) -> str | None:
+    """Decrypt restaurant_id for the current user."""
+    if user.restaurant_id_encrypted:
+        return decrypt_value(user.restaurant_id_encrypted)
+    return None
 
 # ── Health (public) ───────────────────────────────────────────────────────
 
@@ -32,10 +58,11 @@ async def list_bins(
     bins_q = select(Bin).order_by(Bin.id)
 
     # RBAC: restaurant sees only its own bins
-    if current_user.role.value == "restaurant" and current_user.restaurant_id:
-        # restaurant_id stored as comma-separated bin IDs e.g. "BN-001,BN-002,BN-003"
-        owned = current_user.restaurant_id.split(",")
-        bins_q = bins_q.where(Bin.id.in_(owned))
+    if current_user.role.value == "restaurant":
+        restaurant_id = _get_restaurant_id(current_user)
+        if restaurant_id:
+            owned = restaurant_id.split(",")
+            bins_q = bins_q.where(Bin.id.in_(owned))
 
     bins = (await db.execute(bins_q)).scalars().all()
     result = []
@@ -53,9 +80,14 @@ async def list_bins(
             battery_v=latest.battery_v if latest else None,
         ) if latest else None
 
+        bin_data = _decrypt_bin(b)
         result.append(BinListItem(
-            id=b.id, name=b.name, location_name=b.location_name,
-            lat=b.lat, lng=b.lng, status=b.status.value,
+            id=bin_data["id"],
+            name=bin_data["name"],
+            location_name=bin_data["location_name"],  # decrypted
+            lat=bin_data["lat"],
+            lng=bin_data["lng"],
+            status=bin_data["status"],
             latest_telemetry=summary,
         ))
     return result
@@ -69,7 +101,8 @@ async def get_bin(
 ):
     # RBAC check for restaurant role
     if current_user.role.value == "restaurant":
-        owned = (current_user.restaurant_id or "").split(",")
+        restaurant_id = _get_restaurant_id(current_user)
+        owned = (restaurant_id or "").split(",")
         if bin_id not in owned:
             raise HTTPException(403, detail="Access denied to this bin")
 
@@ -90,10 +123,16 @@ async def get_bin(
         battery_v=latest.battery_v if latest else None,
     ) if latest else None
 
+    bin_data = _decrypt_bin(b)
     return BinDetail(
-        id=b.id, name=b.name, location_name=b.location_name,
-        lat=b.lat, lng=b.lng, status=b.status.value,
-        installed_at=b.installed_at, latest_telemetry=summary,
+        id=bin_data["id"],
+        name=bin_data["name"],
+        location_name=bin_data["location_name"],  # decrypted
+        lat=bin_data["lat"],
+        lng=bin_data["lng"],
+        status=bin_data["status"],
+        installed_at=bin_data["installed_at"],
+        latest_telemetry=summary,
     )
 
 
@@ -107,7 +146,8 @@ async def get_telemetry(
     current_user: User = Depends(get_current_user),
 ):
     if current_user.role.value == "restaurant":
-        owned = (current_user.restaurant_id or "").split(",")
+        restaurant_id = _get_restaurant_id(current_user)
+        owned = (restaurant_id or "").split(",")
         if bin_id not in owned:
             raise HTTPException(403, detail="Access denied to this bin")
 
@@ -139,7 +179,8 @@ async def pickups_today(
 
     # Restaurant only sees pickups for its bins
     if current_user.role.value == "restaurant":
-        owned = (current_user.restaurant_id or "").split(",")
+        restaurant_id = _get_restaurant_id(current_user)
+        owned = (restaurant_id or "").split(",")
         q = q.where(Pickup.bin_id.in_(owned))
 
     rows = (await db.execute(q.order_by(Pickup.scheduled_at))).scalars().all()
@@ -153,7 +194,8 @@ async def get_forecasts(
     current_user: User = Depends(get_current_user),
 ):
     if current_user.role.value == "restaurant":
-        owned = (current_user.restaurant_id or "").split(",")
+        restaurant_id = _get_restaurant_id(current_user)
+        owned = (restaurant_id or "").split(",")
         if bin_id not in owned:
             raise HTTPException(403, detail="Access denied to this bin")
 
@@ -176,11 +218,12 @@ async def report_30days(
 ):
     # Restaurant can only report on its own bins
     if current_user.role.value == "restaurant":
-        owned = (current_user.restaurant_id or "").split(",")
+        restaurant_id = _get_restaurant_id(current_user)
+        owned = (restaurant_id or "").split(",")
         if bin_id and bin_id not in owned:
             raise HTTPException(403, detail="Access denied to this bin's report")
         if not bin_id and owned:
-            bin_id = owned[0]   # default to first owned bin
+            bin_id = owned[0]
 
     t0 = time.perf_counter()
     daily_rows, pickup_count = await get_30day_report(db, bin_id)
