@@ -37,10 +37,7 @@ def _decrypt_bin(b: Bin) -> dict:
     }
 
 def _get_restaurant_id(user: User) -> str | None:
-    """Decrypt restaurant_id for the current user."""
-    if user.restaurant_id_encrypted:
-        return decrypt_value(user.restaurant_id_encrypted)
-    return None
+    return user.restaurant_id or None
 
 # ── Health (public) ───────────────────────────────────────────────────────
 
