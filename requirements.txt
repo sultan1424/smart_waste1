@@ -59,14 +59,13 @@ websockets==16.0
 
 # ── New: ML models ────────────────────────────────────────────────────────
 
-# Mohsen's Prophet forecasting model
 prophet==1.1.6
 pandas==2.2.3
 numpy==1.26.4
 
-# Aseel's OR-Tools routing model
+
 ortools==9.11.4210
 openpyxl==3.1.5
 
 # Nightly scheduler (runs Prophet at 2am UTC)
-APScheduler==3.10.4
+cmdstanpy==1.2.4
