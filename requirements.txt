@@ -69,3 +69,4 @@ openpyxl==3.1.5
 
 # Nightly scheduler (runs Prophet at 2am UTC)
 cmdstanpy==1.2.4
+APScheduler==3.10.4
