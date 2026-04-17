@@ -98,6 +98,26 @@ async def list_bins(
         ))
     return result
 
+@router.post("/bins/{bin_id}/telemetry")
+async def ingest_telemetry(
+    bin_id: str,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.models import Telemetry
+    from datetime import datetime, timezone
+    new_row = Telemetry(
+        bin_id=bin_id,
+        ts=datetime.now(timezone.utc),
+        fill_pct=payload.get("fill_pct"),
+        weight_kg=payload.get("weight_kg"),
+        temp_c=payload.get("temp_c"),
+        battery_v=payload.get("battery_v"),
+    )
+    db.add(new_row)
+    await db.commit()
+    return {"status": "ok", "bin_id": bin_id, "ts": new_row.ts}
+
 
 @router.get("/bins/{bin_id}", response_model=BinDetail)
 async def get_bin(
