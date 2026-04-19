@@ -100,6 +100,8 @@ async def list_bins(
         ))
     return result
 
+BIN_TARE_WEIGHT = 2.23  # bin's own weight in kg
+
 @router.post("/bins/{bin_id}/telemetry")
 async def ingest_telemetry(
     bin_id: str,
@@ -110,13 +112,16 @@ async def ingest_telemetry(
     from datetime import datetime, timezone
     from app.services.notifications import send_bin_critical_restaurant, send_bin_critical_collector
 
-    fill_pct = payload.get("fill_pct", 0)
+    # Subtract bin tare weight — show only food waste
+    raw_weight = payload.get("weight_kg", 0) or 0
+    weight_kg  = max(0.0, raw_weight - BIN_TARE_WEIGHT)
+    fill_pct   = payload.get("fill_pct", 0) or 0
 
     new_row = Telemetry(
         bin_id=bin_id,
         ts=datetime.now(timezone.utc),
         fill_pct=fill_pct,
-        weight_kg=payload.get("weight_kg"),
+        weight_kg=weight_kg,
         temp_c=payload.get("temp_c"),
         battery_v=payload.get("battery_v"),
     )
