@@ -110,4 +110,4 @@ async def optimize_pickup_route(
     if "error" in result:
         raise HTTPException(422, detail=f"Optimizer failed: {result['error']}")
 
-    return result
+    # Send route 

@@ -108,16 +108,31 @@ async def ingest_telemetry(
 ):
     from app.models.models import Telemetry
     from datetime import datetime, timezone
+    from app.services.notifications import send_bin_critical_restaurant, send_bin_critical_collector
+
+    fill_pct = payload.get("fill_pct", 0)
+
     new_row = Telemetry(
         bin_id=bin_id,
         ts=datetime.now(timezone.utc),
-        fill_pct=payload.get("fill_pct"),
+        fill_pct=fill_pct,
         weight_kg=payload.get("weight_kg"),
         temp_c=payload.get("temp_c"),
         battery_v=payload.get("battery_v"),
     )
     db.add(new_row)
     await db.commit()
+
+    # Send notifications if bin is critical
+    if fill_pct >= 90:
+        try:
+            b = await db.get(Bin, bin_id)
+            location = bin_id
+            send_bin_critical_restaurant("restaurant@wastenenergy.com", bin_id, fill_pct, location)
+            send_bin_critical_collector("collector@wasteenergy.com", bin_id, fill_pct, location)
+        except Exception as e:
+            print(f"⚠️ Notification failed: {e}")
+
     return {"status": "ok", "bin_id": bin_id, "ts": new_row.ts}
 
 
