@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.models.models import User
 
-SUPABASE_URL = "https://dovinauminsyyldhrymu.supabase.co"
+SUPABASE_URL  = "https://dovinauminsyyldhrymu.supabase.co"
 SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRvdmluYXVtaW5zeXlsZGhyeW11Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3ODk3NjMsImV4cCI6MjA4NzM2NTc2M30.y76T02LY6oBCLOjYcqKohbCqb_gSKDA0QLbd686msCk"
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -25,7 +25,6 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    # Verify token with Supabase
     try:
         async with httpx.AsyncClient() as client:
             res = await client.get(
@@ -35,20 +34,24 @@ async def get_current_user(
                     "apikey": SUPABASE_ANON,
                 },
             )
+        print(f"🔑 Supabase auth status: {res.status_code}")
+        print(f"🔑 Supabase response: {res.text[:200]}")
         if res.status_code != 200:
             raise credentials_exc
         supabase_user = res.json()
         auth_id = supabase_user.get("id")
+        print(f"🔑 auth_id from Supabase: {auth_id}")
         if not auth_id:
             raise credentials_exc
-    except httpx.RequestError:
+    except httpx.RequestError as e:
+        print(f"🔑 httpx error: {e}")
         raise credentials_exc
 
-    # Look up user by auth_id
     result = await db.execute(
         select(User).where(User.auth_id == auth_id)
     )
     user = result.scalar_one_or_none()
+    print(f"🔑 user found: {user}")
     if user is None:
         raise credentials_exc
     return user
