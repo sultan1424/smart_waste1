@@ -109,5 +109,22 @@ async def optimize_pickup_route(
 
     if "error" in result:
         raise HTTPException(422, detail=f"Optimizer failed: {result['error']}")
-
-    # Send route 
+    
+    print(f"✅ Route result keys: {list(result.keys()) if result else 'NONE'}")
+    
+    # Send route ready notification to collector
+    try:
+        from app.services.notifications import send_route_ready_collector
+        stop_ids = [n["id"] for n in result.get("route", [])]
+        send_route_ready_collector(
+            "collector@wasteenergy.com",
+            result.get("bins_served", 0),
+            result.get("total_dist_km", 0),
+            result.get("total_time_hr", 0),
+            stop_ids,
+        )
+    except Exception as e:
+        print(f"⚠️ Route notification failed: {e}")
+    
+    print(f"✅ Returning result with {len(result.get('route', []))} stops")
+    return result
