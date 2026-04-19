@@ -34,24 +34,23 @@ async def get_current_user(
                     "apikey": SUPABASE_ANON,
                 },
             )
-        print(f"🔑 Supabase auth status: {res.status_code}")
-        print(f"🔑 Supabase response: {res.text[:200]}")
+
         if res.status_code != 200:
             raise credentials_exc
         supabase_user = res.json()
         auth_id = supabase_user.get("id")
-        print(f"🔑 auth_id from Supabase: {auth_id}")
+      
         if not auth_id:
             raise credentials_exc
     except httpx.RequestError as e:
-        print(f"🔑 httpx error: {e}")
+    
         raise credentials_exc
 
     result = await db.execute(
         select(User).where(User.auth_id == auth_id)
     )
     user = result.scalar_one_or_none()
-    print(f"🔑 user found: {user}")
+
     if user is None:
         raise credentials_exc
     return user
