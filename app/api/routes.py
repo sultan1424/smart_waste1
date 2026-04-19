@@ -55,14 +55,7 @@ async def health():
     return HealthResponse(status="ok", version="0.1.0-ppr")
 
 
-@router.get("/auth/me", response_model=None)
-async def get_me(
-    current_user: User = Depends(get_current_user),
-):
-    return {
-        "role": current_user.role.value,
-        "id": current_user.id,
-    }
+
 # ── Bins ──────────────────────────────────────────────────────────────────
 
 @router.get("/bins", response_model=list[BinListItem])
