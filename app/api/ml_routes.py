@@ -70,11 +70,16 @@ async def optimize_pickup_route(
     if flagged is None:
         # Auto-flag by fill threshold
         flagged = [bid for bid, fill in fill_map.items() if fill >= req.fill_threshold]
+        
+        # Google Maps supports max 9 waypoints — limit to top 9 by fill level
+        if len(flagged) > 9:
+            flagged = sorted(flagged, key=lambda bid: fill_map.get(bid, 0), reverse=True)[:9]
+            print(f"⚠️ Limited to 9 bins for Google Maps compatibility")
 
         if not flagged:
-            # Nothing above threshold — flag top 60% by fill level
+            # Nothing above threshold — flag top bins by fill level, max 9
             sorted_bins = sorted(fill_map.items(), key=lambda x: x[1], reverse=True)
-            top_n = max(1, int(len(sorted_bins) * 0.6))
+            top_n = min(9, max(1, int(len(sorted_bins) * 0.6)))
             flagged = [bid for bid, _ in sorted_bins[:top_n]]
 
         if not flagged:
